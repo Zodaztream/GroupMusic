@@ -5,8 +5,8 @@ var cookieParser = require("cookie-parser");
 var express = require("express"); // Express web server framework
 var request = require("request"); // "Request" library
 
-var client_id = "d5a94039038d4a12b5816fd9bf1e6af5"; // Your client id
-var client_secret = "f4d930549d7645f987e72848c67ddbf5"; // Your secret
+var client_id = ""; // Your client id
+var client_secret = ""; // Your secret
 var redirect_uri = "http://localhost:8888/callback"; // Your redirect uri, but will this redirect the page back, or will it perform a chained call to this redirect uri, subsequently be thrown
 // back?
 
