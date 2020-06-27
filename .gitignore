@@ -21,3 +21,6 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+secret_key.txt
+secret_key.json
+data.json
