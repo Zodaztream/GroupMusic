@@ -5,8 +5,9 @@ var cookieParser = require("cookie-parser");
 var express = require("express"); // Express web server framework
 var request = require("request"); // "Request" library
 
+const keys = require("../../data.json");
 var client_id = "d5a94039038d4a12b5816fd9bf1e6af5"; // Your client id
-var client_secret = ""; // Your secret
+var client_secret = keys["secret_key"]; // Your secret
 var redirect_uri = "http://localhost:8888/callback"; // Your redirect uri, but will this redirect the page back, or will it perform a chained call to this redirect uri, subsequently be thrown
 // back?
 
@@ -17,11 +18,6 @@ app
   .use(express.static(__dirname + "../../public"))
   .use(cors())
   .use(cookieParser());
-
-const keys = require("../../data.json");
-keys.map(id => {
-  client_secret = keys[id];
-});
 
 /**
  * Generates a random string containing numbers and letters
@@ -44,7 +40,7 @@ app.get("/login", (req, res) => {
   res.cookie(stateKey, state);
 
   // request authentication
-  var scope = "user-read-private user-read-email";
+  var scope = "user-read-private user-read-email user-modify-playback-state";
   res.redirect(
     "https://accounts.spotify.com/authorize?" +
       querystring.stringify({
@@ -104,7 +100,7 @@ app.get("/callback", (req, res) => {
 
       // or pass the token to browser
       res.redirect(
-        "http://localhost:3000/" +
+        "http://localhost:3000?" +
           querystring.stringify({
             access_token: access_token,
             refresh_token: refresh_token

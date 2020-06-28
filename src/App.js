@@ -6,6 +6,7 @@ import Button from "@material-ui/core/Button";
 import Dialog from "@material-ui/core/Dialog";
 import { useHistory, Redirect, Link } from "react-router-dom";
 import { withRouter } from "react-router";
+import { handleAddQueue } from "./network/helper";
 
 function App() {
   const history = useHistory();
@@ -19,17 +20,35 @@ function App() {
     ),
     [on, setOn]
   );
+  // fetch access token
+  const access_token = new URLSearchParams(window.location.search).get(
+    "access_token"
+  );
+
+  // add token to local storage
+  localStorage.setItem("access_token", access_token);
 
   return (
-    <Button
-      variant="contained"
-      color="blue"
-      onClick={() => {
-        window.location.assign("http://localhost:8888/login");
-      }}
-    >
-      Log in
-    </Button>
+    <div>
+      <Button
+        variant="contained"
+        color="blue"
+        onClick={() => {
+          window.location.assign("http://localhost:8888/login");
+        }}
+      >
+        Log in
+      </Button>
+      {access_token && (
+        <Button
+          variant="contained"
+          color="blue"
+          onClick={() => handleAddQueue()}
+        >
+          Add song
+        </Button>
+      )}
+    </div>
   );
 }
 
