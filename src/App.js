@@ -10,6 +10,7 @@ import { useHistory, Redirect, Link } from "react-router-dom";
 import { withRouter } from "react-router";
 import { handleAddQueue, handleSearch } from "./network/helper";
 import TextField from "@material-ui/core/TextField";
+import Tracklist from "./components/Tracklist";
 
 function App() {
   const history = useHistory();
@@ -69,7 +70,7 @@ function App() {
               const { tracks } = JSON.parse(result);
               tracks["items"].map(item => {
                 const trackItem = {
-                  name: item["name"],
+                  name: item["name"], // track name
                   artist: item["artists"][0]["name"], // artist name
                   uri: item["uri"], // track URI
                   image: item["album"]["images"][0] // one image
@@ -82,6 +83,7 @@ function App() {
           Search
         </Button>
       )}
+      {access_token && <Tracklist />}
     </div>
   );
 }
