@@ -19,6 +19,25 @@ app
   .use(cors())
   .use(cookieParser());
 
+// set up SQ-lite database
+const sqlite3 = require("sqlite3").verbose();
+let db = new sqlite3.Database("./database.db", err => {
+  if (err) {
+    return console.log(err.message);
+  }
+  console.log("Connected to DB");
+});
+
+const sql = `
+CREATE TABLE IF NOT EXISTS rooms 
+(
+  code TEXT NOT NULL UNIQUE,
+  token TEXT NOT NULL
+);
+`;
+
+db.run(sql);
+
 /**
  * Generates a random string containing numbers and letters
  * @param  {number} length The length of the string
@@ -92,18 +111,23 @@ app.get("/callback", (req, res) => {
         json: true
       };
 
+      var roomCode = createRoom(generateRandomString(6), access_token);
+
       // then we use "options" to access stuff /perhaps save the token in localstorage or something?
 
       request.get(options, (error, response, body) => {
-        console.log(body);
+        //console.log(body);
       });
 
       // or pass the token to browser
       res.redirect(
-        "http://localhost:3000?" +
+        "http://" +
+          req.hostname +
+          ":3000?" +
           querystring.stringify({
             access_token: access_token,
-            refresh_token: refresh_token
+            refresh_token: refresh_token,
+            roomCode: roomCode
           })
       );
     }
@@ -136,5 +160,49 @@ app.get("/refresh_token", (req, res) => {
   });
 });
 
-// listen on port 8888
+app.get("/join", (req, res) => {
+  var code = req.query.code;
+
+  const sql = `
+  SELECT token FROM rooms WHERE code=?;
+  `;
+  db.get(sql, [code], (err, row) => {
+    if (!row) {
+      res.redirect(
+        "http://" +
+          req.hostname +
+          ":3000?" +
+          querystring.stringify({
+            error: true
+          })
+      );
+      return;
+    }
+    console.log("successfully selected");
+    res.redirect(
+      "http://" +
+        req.hostname +
+        ":3000?" +
+        querystring.stringify({
+          access_token: row.token
+        })
+    );
+  });
+});
+
+function createRoom(roomCode, access_token) {
+  const sql = `
+  INSERT OR IGNORE INTO rooms(code, token) VALUES(?, ?);
+  `;
+  db.run(sql, [roomCode, access_token], err => {
+    if (err) {
+      return console.error(err.message);
+    }
+    console.log(`Successfully created room with code ${roomCode}`);
+  });
+  // this would return roomCode and then the code would be tagged in the url
+  return roomCode;
+}
+
+// add app.get for room code here to put the user into the correct room with the correct token
 app.listen(8888);

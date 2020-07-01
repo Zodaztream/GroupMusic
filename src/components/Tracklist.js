@@ -1,5 +1,5 @@
 import React from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDi } from "react-redux";
 import DynamicList, { createCache } from "react-window-dynamic-list";
 import List from "@material-ui/core/List";
 import ListItem from "@material-ui/core/ListItem";
@@ -9,6 +9,7 @@ import { makeStyles } from "@material-ui/core/styles";
 import PropTypes from "prop-types";
 import { FixedSizeList } from "react-window";
 import { Paper, TextareaAutosize, Avatar } from "@material-ui/core";
+import { handleAddQueue } from "../network/helper";
 
 const useStyles = makeStyles(theme => ({
   root: {
@@ -22,7 +23,7 @@ const useStyles = makeStyles(theme => ({
 
 function generateListElement(track, index) {
   return (
-    <ListItem button key={index}>
+    <ListItem button key={index} onClick={() => handleAddQueue(track["uri"])}>
       <ListItemAvatar>
         <Avatar src={`${track["image"]["url"]}`} />
       </ListItemAvatar>

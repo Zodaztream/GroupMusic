@@ -11,12 +11,14 @@ import { withRouter } from "react-router";
 import { handleAddQueue, handleSearch } from "./network/helper";
 import TextField from "@material-ui/core/TextField";
 import Tracklist from "./components/Tracklist";
+import querystring from "querystring";
 
 function App() {
   const history = useHistory();
   const dispatch = useDispatch();
   const [on, setOn] = useState(false);
   const [searchValue, setSearch] = useState("");
+  const [roomcode, setRoomcode] = useState("");
   const [state, setState] = useState(null);
   const [showSpotify, hideSpotify] = useModal(
     () => (
@@ -84,6 +86,32 @@ function App() {
         </Button>
       )}
       {access_token && <Tracklist />}
+      {!access_token && (
+        <TextField
+          id="standard-basic"
+          label="Enter room code..."
+          onChange={event => setRoomcode(event.currentTarget.value)}
+        />
+      )}
+      {!access_token && (
+        <Button
+          variant="contained"
+          color="blue"
+          onClick={() => {
+            console.log(window.location.hostname);
+            window.location.assign(
+              "http://" +
+                window.location.hostname +
+                ":8888/join?" +
+                querystring.stringify({
+                  code: roomcode
+                })
+            );
+          }}
+        >
+          Join Room
+        </Button>
+      )}
     </div>
   );
 }

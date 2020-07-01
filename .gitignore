@@ -24,3 +24,4 @@ yarn-error.log*
 secret_key.txt
 secret_key.json
 data.json
+database.db
