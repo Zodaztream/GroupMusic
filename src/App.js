@@ -13,6 +13,19 @@ import TextField from "@material-ui/core/TextField";
 import Tracklist from "./components/Tracklist";
 import querystring from "querystring";
 
+export const authEndpoint = "https://accounts.spotify.com/authorize?";
+const keys = require("./data.json");
+var client_id = "d5a94039038d4a12b5816fd9bf1e6af5"; // Your client id
+var client_secret = keys["secret_key"]; // Your secret
+var redirect_uri = "com.example.cordovaspotifyapp://callback";
+var scopes = [
+  "user-read-private",
+  "user-read-email",
+  "user-modify-playback-state",
+];
+
+var Spotify = window.cordova.plugins.SpotifyPlugin;
+
 function App() {
   const history = useHistory();
   const dispatch = useDispatch();
@@ -42,7 +55,9 @@ function App() {
         variant="contained"
         color="blue"
         onClick={() => {
-          window.location.assign("http://localhost:8888/login");
+          Spotify.login(client_id, redirect_uri, "").then((auth) => {
+            console.log(auth);
+          });
         }}
       >
         Log in
@@ -60,7 +75,7 @@ function App() {
         <TextField
           id="standard-basic"
           label="Search track..."
-          onChange={event => setSearch(event.currentTarget.value)}
+          onChange={(event) => setSearch(event.currentTarget.value)}
         />
       )}
       {access_token && (
@@ -68,14 +83,14 @@ function App() {
           variant="contained"
           color="blue"
           onClick={() =>
-            handleSearch(searchValue).then(result => {
+            handleSearch(searchValue).then((result) => {
               const { tracks } = JSON.parse(result);
-              tracks["items"].map(item => {
+              tracks["items"].map((item) => {
                 const trackItem = {
                   name: item["name"], // track name
                   artist: item["artists"][0]["name"], // artist name
                   uri: item["uri"], // track URI
-                  image: item["album"]["images"][0] // one image
+                  image: item["album"]["images"][0], // one image
                 };
                 dispatch(addTrack(trackItem));
               });
@@ -90,7 +105,7 @@ function App() {
         <TextField
           id="standard-basic"
           label="Enter room code..."
-          onChange={event => setRoomcode(event.currentTarget.value)}
+          onChange={(event) => setRoomcode(event.currentTarget.value)}
         />
       )}
       {!access_token && (
@@ -104,7 +119,7 @@ function App() {
                 window.location.hostname +
                 ":8888/join?" +
                 querystring.stringify({
-                  code: roomcode
+                  code: roomcode,
                 })
             );
           }}

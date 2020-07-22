@@ -14,18 +14,26 @@ const store = createStore(
   window.__REDUX_DEVTOOLS_EXTENSION__ && window.__REDUX_DEVTOOLS_EXTENSION__()
 );
 
-ReactDOM.render(
-  <React.StrictMode>
-    <Provider store={store}>
-      <ModalProvider>
-        <Router>
-          <App />
-        </Router>
-      </ModalProvider>
-    </Provider>
-  </React.StrictMode>,
-  document.getElementById("root")
-);
+const startApp = () => {
+  ReactDOM.render(
+    <React.StrictMode>
+      <Provider store={store}>
+        <ModalProvider>
+          <Router>
+            <App />
+          </Router>
+        </ModalProvider>
+      </Provider>
+    </React.StrictMode>,
+    document.getElementById("root")
+  );
+};
+
+if (window.cordova) {
+  document.addEventListener("deviceready", startApp, false);
+} else {
+  startApp();
+}
 
 // If you want your app to work offline and load faster, you can change
 // unregister() to register() below. Note this comes with some pitfalls.
