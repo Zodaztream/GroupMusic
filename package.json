@@ -1,6 +1,5 @@
 {
   "name": "spotify_web",
-  "proxy": "http://localhost:8888",
   "homepage": "./",
   "version": "0.1.0",
   "private": true,
@@ -14,7 +13,7 @@
     "@testing-library/user-event": "^7.2.1",
     "@typescript-eslint/eslint-plugin": "^2.10.0",
     "@typescript-eslint/parser": "^2.10.0",
-    "Cordova-spotify-plugin-ios-android": "file:../Cordova-spotify-plugin-ios-android-master",
+    "Cordova-spotify-plugin-ios-android": "git+https://github.com/jeweller1980stepanets/Cordova-spotify-plugin-ios-android.git",
     "babel-eslint": "10.1.0",
     "babel-jest": "^24.9.0",
     "babel-loader": "8.1.0",
@@ -25,6 +24,8 @@
     "cookie-parser": "^1.4.5",
     "cordova": "^9.0.0",
     "cordova-android": "^8.1.0",
+    "cordova-plugin-androidx": "^2.0.0",
+    "cordova-plugin-androidx-adapter": "^1.1.1",
     "cordova-plugin-qrcodejs": "git+https://github.com/MenelicSoftware/cordova-plugin-qrcodejs.git",
     "cordova-plugin-qrscanner": "^3.0.1",
     "cordova-sqlite-storage": "git+https://github.com/xpbrew/cordova-sqlite-storage.git",
@@ -32,6 +33,7 @@
     "css-loader": "3.4.2",
     "dotenv": "8.2.0",
     "dotenv-expand": "5.1.0",
+    "es6-promise-plugin": "^4.2.2",
     "eslint": "^6.6.0",
     "eslint-config-react-app": "^5.2.1",
     "eslint-loader": "3.0.3",
@@ -161,13 +163,19 @@
     ]
   },
   "devDependencies": {
-    "cordova-plugin-whitelist": "1"
+    "cordova-plugin-whitelist": "1",
+    "cordova.plugin.spotify": "0.1.1"
   },
   "cordova": {
     "plugins": {
       "cordova-plugin-whitelist": {},
       "cordova-plugin-qrscanner": {},
-      "cordova-plugin-qrcodejs": {}
+      "cordova-plugin-qrcodejs": {},
+      "cordova-plugin-androidx": {},
+      "cordova-plugin-androidx-adapter": {},
+      "cordova.plugin.spotify": {
+        "URL_SCHEME_LT": "com.example.cordovaspotifyapp"
+      }
     },
     "platforms": [
       "android"
