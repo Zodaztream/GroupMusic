@@ -23,6 +23,21 @@ const mode_length = "01000000000011111010"; // This contains the mode bits (firs
 const terminator_bits = "0000"; //these are required for QR codes incase the length is not exact.
 // Filler bits.
 const subsequent_bits = `11101100 00010001 11101100 00010001 11101100 00010001 11101100 00010001 11101100 00010001 11101100 00010001 11101100 00010001 11101100 00010001 11101100 00010001 11101100 00010001 11101100`;
+
+const generator_poly =
+  "α^0x^283 + α^215x^282 + α^234x^281 + α^158x^280 + α^94x^279 + α^184x^278 + α^97x^277 + α^118x^276 + α^170x^275 + α^79x^274 + α^187x^273 + α^152x^272 + α^148x^271 + α^252x^270 + α^179x^269 + α^5x^268 + α^98x^267 + α^96x^265 + α^153x^264";
+
+//This is the log antilog table for the galois field(256), each INDEX represents the power-value of alpha (=2). e.g 29 = alpha^8 (i.e index 8)
+const galois_field_table = `1	2	4	8	16	32	64	128	29	58	116	232	205	135	19	38	76	152	45	90	180	117	234	201	143	3	6	12	24	48	96	192	157	39	78	156	37	74	148	53
+                        106	212	181	119	238	193	159	35	70	140	5	10	20	40	80	160	93	186	105	210	185	111	222	161	95	190	97	194	153	47	94	188	101	202	137	15	30
+                        60	120	240	253	231	211	187	107	214 177	127	254	225	223	163	91	182	113	226	217	175	67	134	17	34	68	136	13	26	52	104	208	189	103	206	129
+                        31	62	124	248	237	199	147	59	118	236	197	151	51	102	204	133	23	46	92	184	109	218	169	79	158	33	66	132	21	42	84	168	77	154	41	82
+                        164	85	170	73	146	57	114	228	213	183	115	230	209	191	99	198	145	63	126	252	229	215	179	123	246	241	255	227	219	171	75	150	49	98	196	149
+                        55	110	220	165	87	174	65	130	25	50	100	200	141	7	14	28	56	112	224	221	167	83	166	81	162	89	178	121	242	249	239	195	155	43	86	172	69
+                        138	9	18	36	72	144	61	122	244	245	247	243	251	235	203	139	11	22	44	88	176	125	250	233	207	131	27	54	108	216	173	71	142`
+  .replace(/\s+/g, " ")
+  .split(" ");
+
 /*
 
 hex = "H".charCodeAt(0).toString(16); // convert character to hex (without 0x)
@@ -74,12 +89,97 @@ function hex_to_character(input) {
 function comeplete_qr_code(encoded) {
   // this takes all bits rearrenges them into a complete QR code order and returns them into equal chunks of 8 bits long
   let all_bits = `${mode_length}${encoded}${terminator_bits}${subsequent_bits}`;
-  return all_bits
-    .replace(/\s+/g, "")
-    .match(/.{1,8}/g)
-    .join(" ");
+  return all_bits.replace(/\s+/g, "").match(/.{1,8}/g); //returns array of 8 bit chunks (strings)
+  //.join(" ");
 }
 
+/////courtesty of https://sim0n.wordpress.com/2009/04/04/javascript-simple-algebraic-long-division/
+// Long divison
+function extractCompontents(Term, constantChar) {
+  var Comps = new Array();
+  Comps[0] = Term.split(constantChar)[0];
+  Comps[1] = Term.split("^")[1];
+  if (Comps[0] == "") {
+    Comps[0] = 1;
+  }
+  if (String(Comps[1]) == "undefined") {
+    Comps[1] = 1;
+  }
+  return Comps;
+}
+function divideTerm(Term1, Term2, constantChar) {
+  var extTerm1 = extractCompontents(Term1, constantChar);
+  var extTerm2 = extractCompontents(Term2, constantChar);
+  return (
+    String(extTerm1[0] / extTerm2[0]) +
+    constantChar +
+    "^" +
+    String(extTerm1[1] - extTerm2[1])
+  );
+}
+function multiplyTerm(Term1, Term2, constantChar) {
+  var extTerm1 = extractCompontents(Term1, constantChar);
+  return String(extTerm1[0] * Term2) + constantChar + "^" + String(extTerm1[1]);
+}
+
+function subtractTerm(Term1, Term2, constantChar) {
+  var extTerm1 = extractCompontents(Term1, constantChar);
+  var extTerm2 = extractCompontents(Term2, constantChar);
+  if (extTerm1[1] != extTerm2[1]) {
+    return null;
+  }
+  return (
+    String(extTerm1[0] - extTerm2[0]) + constantChar + "^" + String(extTerm1[1])
+  );
+}
+
+function XORTerm(Term1, Term2) {}
+
+function longAlgebraicDivision(poly, division) {
+  //Format the equations correctly
+  poly = poly.replace(/(--|\+\+)/g, "+");
+  poly = poly.replace(/(-\+|\+-)/g, "-");
+  poly = poly.replace(/^\+/g, "");
+  poly = poly.replace(/\s/g, "");
+  division = division.replace(/(--|\+\+)/g, "+");
+  division = division.replace(/(-\+|\+-)/g, "-");
+  division = division.replace(/^\+/g, "");
+  division = division.replace(/\s/g, "");
+  //Add spaces to the equation to break it apart
+  poly = poly.replace(/([+-])/g, " $1");
+  //Split the equation at the spaces
+  var equ = poly.split(" ");
+  //Begin the division
+  var output = "";
+  var lastTerm = "";
+  for (var i = 0; i < equ.length - 1; i++) {
+    var term = equ[i];
+    if (i == 0) {
+      var dt = divideTerm(term, division.split("x")[0], "x");
+      output += dt + "+";
+      dt = multiplyTerm(dt, division.split("x")[1], "x");
+      lastTerm = dt;
+    } else {
+      var dt = subtractTerm(term, lastTerm, "x");
+      dt = divideTerm(dt, division.split("x")[0], "x");
+      output += dt + "+";
+      dt = multiplyTerm(dt, division.split("x")[1], "x");
+      lastTerm = dt;
+    }
+  }
+  //Format output
+  output = output.replace(/\+([+-])/g, "$1");
+  output = output.replace(/x\^0\+$/g, "");
+  output = output.replace(/x\^1/g, "x");
+  //Calculate remainder
+  lastTerm = lastTerm.replace(/x\^0/g, "");
+  output +=
+    " : Remainder [" +
+    String(Number(equ[equ.length - 1]) - Number(lastTerm)) +
+    "]";
+  return output;
+}
+/////
 function App() {
   const history = useHistory();
   const dispatch = useDispatch();
@@ -90,7 +190,20 @@ function App() {
   const [state, setState] = useState(null);
 
   var Spotify = window.cordova.plugins.SpotifyPlugin;
-  if (encodedBinary) console.log(comeplete_qr_code(encodedBinary));
+  if (encodedBinary) {
+    let qr_chunks = comeplete_qr_code(encodedBinary);
+    let integer_chunks = qr_chunks.map(chunk => parseInt(chunk, 2)); //converts the byte chunks into integer, necessary for message polynomial (QR-related), these are coefficients
+    let message_polynomial = integer_chunks
+      .map(
+        (integer, index) =>
+          `${integer}x^${integer_chunks.length - (1 + index) + 18}`
+      )
+      .join("+");
+    console.log(message_polynomial);
+    // convert message_polnomial into alpha
+    let group_one = [qr_chunks.splice(0, 68), qr_chunks.splice(68, 136)];
+    let group_two = [qr_chunks.splice(136, 205), qr_chunks.splice(205, 274)];
+  }
   //console.log(comeplete_qr_code(encodedBinary));
   var access_token = "";
   // add token to local storage (might still use this)
