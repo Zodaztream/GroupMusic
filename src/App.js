@@ -24,8 +24,8 @@ const terminator_bits = "0000"; //these are required for QR codes incase the len
 // Filler bits.
 const subsequent_bits = `11101100 00010001 11101100 00010001 11101100 00010001 11101100 00010001 11101100 00010001 11101100 00010001 11101100 00010001 11101100 00010001 11101100 00010001 11101100 00010001 11101100`;
 
-const generator_poly =
-  "α^0x^283 + α^215x^282 + α^234x^281 + α^158x^280 + α^94x^279 + α^184x^278 + α^97x^277 + α^118x^276 + α^170x^275 + α^79x^274 + α^187x^273 + α^152x^272 + α^148x^271 + α^252x^270 + α^179x^269 + α^5x^268 + α^98x^267 + α^96x^265 + α^153x^264";
+var generator_poly =
+  "0x291 + 215x290 + 234x289 + 158x288 + 94x287 + 184x286 + 97x285 + 118x284 + 170x283 + 79x282 + 187x281 + 152x280 + 148x279 + 252x278 + 179x277 + 5x276 + 98x275 + 96x274 + 153x273";
 
 //This is the log antilog table for the galois field(256), each INDEX represents the power-value of alpha (=2). e.g 29 = alpha^8 (i.e index 8)
 const galois_field_table = `1	2	4	8	16	32	64	128	29	58	116	232	205	135	19	38	76	152	45	90	180	117	234	201	143	3	6	12	24	48	96	192	157	39	78	156	37	74	148	53
@@ -133,8 +133,6 @@ function subtractTerm(Term1, Term2, constantChar) {
   );
 }
 
-function XORTerm(Term1, Term2) {}
-
 function longAlgebraicDivision(poly, division) {
   //Format the equations correctly
   poly = poly.replace(/(--|\+\+)/g, "+");
@@ -179,7 +177,46 @@ function longAlgebraicDivision(poly, division) {
     "]";
   return output;
 }
-/////
+
+function longDivision(message_poly, generator_poly) {
+  //galois_field_table.indexOf(integer) = alpha power value
+  //Add spaces to the equation to break it apart
+  //Split the equation at the spaces
+  // multiply the lead term of the message poly by generator poly
+  for (let i = 0; i < 274; i++) {
+    let first_term = message_poly[0].split("x");
+    var alpha_power = galois_field_table.indexOf(first_term[0]);
+    // multiplies the lead term of the message poly by the generator poly and, simultanouelsy converting the entire generator poly to integer
+    var generator_poly_copy = generator_poly.map(term => {
+      var term_split = term.split("x");
+      var term_alpha = Number(term_split[0]);
+      var added_term =
+        alpha_power + term_alpha >= 256
+          ? (alpha_power + term_alpha) % 255
+          : alpha_power + term_alpha;
+      var integer_term = galois_field_table[added_term];
+      return `${integer_term}x${term_split[1]}`;
+    });
+
+    //XOR the generator_poly (now with integer notation) with the message polynomial, those with the same x_power, XOR by 0 with those "outside" the range of the generator_poly
+    for (let j = 0; j < generator_poly_copy.length; j++) {
+      let generator_term = generator_poly_copy[j].split("x")[0];
+      let message_term = message_poly[j] ? message_poly[j].split("x") : [0, 0];
+      message_poly[j] = `${message_term[0] ^ Number(generator_term)}x${
+        message_term[1]
+      }`;
+    }
+
+    //discard the first term (which is 0)
+    message_poly.shift();
+  }
+
+  console.log(message_poly); //Final 18 EC-codewords
+
+  //LOOP
+
+  //console.log(message_poly); // lead_term should be 0, it is not. What's wrong. INvestigate tomorrow
+}
 function App() {
   const history = useHistory();
   const dispatch = useDispatch();
@@ -193,14 +230,13 @@ function App() {
   if (encodedBinary) {
     let qr_chunks = comeplete_qr_code(encodedBinary);
     let integer_chunks = qr_chunks.map(chunk => parseInt(chunk, 2)); //converts the byte chunks into integer, necessary for message polynomial (QR-related), these are coefficients
-    let message_polynomial = integer_chunks
-      .map(
-        (integer, index) =>
-          `${integer}x^${integer_chunks.length - (1 + index) + 18}`
-      )
-      .join("+");
-    console.log(message_polynomial);
-    // convert message_polnomial into alpha
+    let message_polynomial = integer_chunks.map(
+      (integer, index) =>
+        `${integer}x${integer_chunks.length - (1 + index) + 18}`
+    );
+    generator_poly = generator_poly.replace(/\s/g, "");
+    generator_poly = generator_poly.split("+");
+    longDivision(message_polynomial, generator_poly);
     let group_one = [qr_chunks.splice(0, 68), qr_chunks.splice(68, 136)];
     let group_two = [qr_chunks.splice(136, 205), qr_chunks.splice(205, 274)];
   }
