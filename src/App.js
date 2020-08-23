@@ -93,97 +93,13 @@ function comeplete_qr_code(encoded) {
   //.join(" ");
 }
 
-/////courtesty of https://sim0n.wordpress.com/2009/04/04/javascript-simple-algebraic-long-division/
-// Long divison
-function extractCompontents(Term, constantChar) {
-  var Comps = new Array();
-  Comps[0] = Term.split(constantChar)[0];
-  Comps[1] = Term.split("^")[1];
-  if (Comps[0] == "") {
-    Comps[0] = 1;
-  }
-  if (String(Comps[1]) == "undefined") {
-    Comps[1] = 1;
-  }
-  return Comps;
-}
-function divideTerm(Term1, Term2, constantChar) {
-  var extTerm1 = extractCompontents(Term1, constantChar);
-  var extTerm2 = extractCompontents(Term2, constantChar);
-  return (
-    String(extTerm1[0] / extTerm2[0]) +
-    constantChar +
-    "^" +
-    String(extTerm1[1] - extTerm2[1])
-  );
-}
-function multiplyTerm(Term1, Term2, constantChar) {
-  var extTerm1 = extractCompontents(Term1, constantChar);
-  return String(extTerm1[0] * Term2) + constantChar + "^" + String(extTerm1[1]);
-}
-
-function subtractTerm(Term1, Term2, constantChar) {
-  var extTerm1 = extractCompontents(Term1, constantChar);
-  var extTerm2 = extractCompontents(Term2, constantChar);
-  if (extTerm1[1] != extTerm2[1]) {
-    return null;
-  }
-  return (
-    String(extTerm1[0] - extTerm2[0]) + constantChar + "^" + String(extTerm1[1])
-  );
-}
-
-function longAlgebraicDivision(poly, division) {
-  //Format the equations correctly
-  poly = poly.replace(/(--|\+\+)/g, "+");
-  poly = poly.replace(/(-\+|\+-)/g, "-");
-  poly = poly.replace(/^\+/g, "");
-  poly = poly.replace(/\s/g, "");
-  division = division.replace(/(--|\+\+)/g, "+");
-  division = division.replace(/(-\+|\+-)/g, "-");
-  division = division.replace(/^\+/g, "");
-  division = division.replace(/\s/g, "");
-  //Add spaces to the equation to break it apart
-  poly = poly.replace(/([+-])/g, " $1");
-  //Split the equation at the spaces
-  var equ = poly.split(" ");
-  //Begin the division
-  var output = "";
-  var lastTerm = "";
-  for (var i = 0; i < equ.length - 1; i++) {
-    var term = equ[i];
-    if (i == 0) {
-      var dt = divideTerm(term, division.split("x")[0], "x");
-      output += dt + "+";
-      dt = multiplyTerm(dt, division.split("x")[1], "x");
-      lastTerm = dt;
-    } else {
-      var dt = subtractTerm(term, lastTerm, "x");
-      dt = divideTerm(dt, division.split("x")[0], "x");
-      output += dt + "+";
-      dt = multiplyTerm(dt, division.split("x")[1], "x");
-      lastTerm = dt;
-    }
-  }
-  //Format output
-  output = output.replace(/\+([+-])/g, "$1");
-  output = output.replace(/x\^0\+$/g, "");
-  output = output.replace(/x\^1/g, "x");
-  //Calculate remainder
-  lastTerm = lastTerm.replace(/x\^0/g, "");
-  output +=
-    " : Remainder [" +
-    String(Number(equ[equ.length - 1]) - Number(lastTerm)) +
-    "]";
-  return output;
-}
-
 function longDivision(message_poly, generator_poly) {
   //galois_field_table.indexOf(integer) = alpha power value
   //Add spaces to the equation to break it apart
   //Split the equation at the spaces
   // multiply the lead term of the message poly by generator poly
-  for (let i = 0; i < 274; i++) {
+  var init_length = message_poly.length;
+  for (let i = 0; i < init_length; i++) {
     let first_term = message_poly[0].split("x");
     var alpha_power = galois_field_table.indexOf(first_term[0]);
     // multiplies the lead term of the message poly by the generator poly and, simultanouelsy converting the entire generator poly to integer
@@ -191,7 +107,7 @@ function longDivision(message_poly, generator_poly) {
       var term_split = term.split("x");
       var term_alpha = Number(term_split[0]);
       var added_term =
-        alpha_power + term_alpha >= 256
+        alpha_power + term_alpha >= 255
           ? (alpha_power + term_alpha) % 255
           : alpha_power + term_alpha;
       var integer_term = galois_field_table[added_term];
@@ -207,11 +123,15 @@ function longDivision(message_poly, generator_poly) {
       }`;
     }
 
-    //discard the first term (which is 0)
-    message_poly.shift();
+    //discard the first term (which is 0), need to discard ALL 0 terms
+    while (Number(message_poly[0].split("x")[0]) === 0) {
+      message_poly.shift();
+    }
+    console.log(message_poly);
   }
 
-  console.log(message_poly); //Final 18 EC-codewords
+  //console.log(message_poly); //Final 18 EC-codewords
+  return message_poly;
 
   //LOOP
 
@@ -236,9 +156,12 @@ function App() {
     );
     generator_poly = generator_poly.replace(/\s/g, "");
     generator_poly = generator_poly.split("+");
-    longDivision(message_polynomial, generator_poly);
-    let group_one = [qr_chunks.splice(0, 68), qr_chunks.splice(68, 136)];
-    let group_two = [qr_chunks.splice(136, 205), qr_chunks.splice(205, 274)];
+
+    var group_one = [qr_chunks.splice(0, 68), qr_chunks.splice(68, 136)];
+    var group_two = [qr_chunks.splice(136, 205), qr_chunks.splice(205, 274)];
+
+    longDivision(message_polynomial.splice(0, 68), generator_poly);
+    console.log(integer_chunks.splice(0, 68));
   }
   //console.log(comeplete_qr_code(encodedBinary));
   var access_token = "";
