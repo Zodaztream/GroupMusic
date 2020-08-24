@@ -86,6 +86,18 @@ function hex_to_character(input) {
   return String.fromCharCode("0x" + input);
 }
 
+function number_to_binary(input) {
+  var byte = "00000000";
+  var binary = parseInt(input, 10).toString(2);
+  byte = byte.slice(0, 8 - binary.length);
+  byte += binary;
+  return byte;
+}
+
+function binary_to_number(input) {
+  return parseInt(input, 2);
+}
+
 function comeplete_qr_code(encoded) {
   // this takes all bits rearrenges them into a complete QR code order and returns them into equal chunks of 8 bits long
   let all_bits = `${mode_length}${encoded}${terminator_bits}${subsequent_bits}`;
@@ -94,10 +106,6 @@ function comeplete_qr_code(encoded) {
 }
 
 function longDivision(message_poly, generator_poly) {
-  //galois_field_table.indexOf(integer) = alpha power value
-  //Add spaces to the equation to break it apart
-  //Split the equation at the spaces
-  // multiply the lead term of the message poly by generator poly
   var init_length = message_poly.length;
   for (let i = 0; i < init_length; i++) {
     let first_term = message_poly[0].split("x");
@@ -123,15 +131,14 @@ function longDivision(message_poly, generator_poly) {
       }`;
     }
 
-    //discard the first term (which is 0), need to discard ALL 0 terms
+    //discard ALL 0 terms which are at the beginning
     while (Number(message_poly[0].split("x")[0]) === 0) {
       message_poly.shift();
     }
-    console.log(message_poly);
   }
 
   //console.log(message_poly); //Final 18 EC-codewords
-  return message_poly;
+  return message_poly.map(item => item.split("x")[0]);
 
   //LOOP
 
@@ -149,19 +156,53 @@ function App() {
   var Spotify = window.cordova.plugins.SpotifyPlugin;
   if (encodedBinary) {
     let qr_chunks = comeplete_qr_code(encodedBinary);
-    let integer_chunks = qr_chunks.map(chunk => parseInt(chunk, 2)); //converts the byte chunks into integer, necessary for message polynomial (QR-related), these are coefficients
+    //converts the byte chunks into integer, necessary for EC calculations (QR-related), these are the coefficients
+    let integer_chunks = qr_chunks.map(chunk => parseInt(chunk, 2));
     let message_polynomial = integer_chunks.map(
       (integer, index) =>
         `${integer}x${integer_chunks.length - (1 + index) + 18}`
     );
     generator_poly = generator_poly.replace(/\s/g, "");
     generator_poly = generator_poly.split("+");
+    //Bytes divided into bytes and groups as per the QR specification for 10-L
+    var group_one = [
+      integer_chunks.splice(0, 68),
+      integer_chunks.splice(68, 136)
+    ];
+    var group_two = [
+      integer.chunks.splice(136, 205),
+      integer_chunks.splice(205, 274)
+    ];
+    // the error correction codewords for each block (4 blocks, in order)
+    var EC_codewords = [
+      longDivision(message_polynomial.splice(0, 68), generator_poly),
+      longDivision(message_polynomial.splice(68, 136), generator_poly),
+      longDivision(message_polynomial.splice(136, 205), generator_poly),
+      longDivision(message_polynomial.splice(205, 274), generator_poly)
+    ];
 
-    var group_one = [qr_chunks.splice(0, 68), qr_chunks.splice(68, 136)];
-    var group_two = [qr_chunks.splice(136, 205), qr_chunks.splice(205, 274)];
-
-    longDivision(message_polynomial.splice(0, 68), generator_poly);
-    console.log(integer_chunks.splice(0, 68));
+    //Interleave the message blocks,
+    var interleaved = [];
+    var interleaved_ec = [];
+    while (group_two[0].length > 0) {
+      if (group_one[0].length > 0) {
+        interleaved.push(group_one[0].shift());
+        interleaved.push(group_one[1].shift());
+      }
+      interleaved.push(group_two[0].shift());
+      interleaved.push(group_two[1].shift());
+      //interleave EC blocks
+      if (EC_codewords[0].length > 0) {
+        interleaved_ec.push(EC_codewords[0].shift());
+        interleaved_ec.push(EC_codewords[1].shift());
+        interleaved_ec.push(EC_codewords[2].shift());
+        interleaved_ec.push(EC_codewords[3].shift());
+      }
+    }
+    var combined_interleaved = [...interleaved, ...interleaved_ec].map(item =>
+      number_to_binary(item)
+    );
+    var complete_message = combined_interleaved.join("");
   }
   //console.log(comeplete_qr_code(encodedBinary));
   var access_token = "";
