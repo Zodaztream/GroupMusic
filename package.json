@@ -26,7 +26,6 @@
     "cordova-android": "^8.1.0",
     "cordova-plugin-androidx": "^2.0.0",
     "cordova-plugin-androidx-adapter": "^1.1.1",
-    "cordova-plugin-qrcodejs": "git+https://github.com/MenelicSoftware/cordova-plugin-qrcodejs.git",
     "cordova-plugin-qrscanner": "^3.0.1",
     "cordova-sqlite-storage": "git+https://github.com/xpbrew/cordova-sqlite-storage.git",
     "cors": "^2.8.5",

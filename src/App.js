@@ -1,4 +1,7 @@
-import React, { useState } from "react";
+/**
+ * Important: I made custom changes to the Spotify plugin; added functionality to make it work better
+ */
+import React, { useState, useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { addTrack } from "./actions";
 import logo from "./logo.svg";
@@ -18,6 +21,11 @@ export const authEndpoint = "https://accounts.spotify.com/authorize?";
 var client_id = "d5a94039038d4a12b5816fd9bf1e6af5"; // Your client id
 //var client_secret = keys["secret_key"]; // Your secret
 var redirect_uri = "com.example.cordovaspotifyapp";
+/// HELLO WORLD EXAMPLE QR CODE CONSTANTS
+const H_encoded_string =
+  "00100000 01011011 00001011 01111000 11010001 01110010 11011100 01001101 01000011 01000000 11101100 00010001 11101100";
+
+///
 
 const mode_length = "01000000000011111010"; // This contains the mode bits (first 4 bits, followed by 16 bits determining the length)
 const terminator_bits = "0000"; //these are required for QR codes incase the length is not exact.
@@ -114,36 +122,79 @@ function longDivision(message_poly, generator_poly) {
     var generator_poly_copy = generator_poly.map(term => {
       var term_split = term.split("x");
       var term_alpha = Number(term_split[0]);
-      var added_term =
-        alpha_power + term_alpha >= 255
-          ? (alpha_power + term_alpha) % 255
-          : alpha_power + term_alpha;
+      var added_term = alpha_power + term_alpha >= 255 ? (alpha_power + term_alpha) % 255 : alpha_power + term_alpha;
       var integer_term = galois_field_table[added_term];
       return `${integer_term}x${term_split[1]}`;
     });
 
-    //XOR the generator_poly (now with integer notation) with the message polynomial, those with the same x_power, XOR by 0 with those "outside" the range of the generator_poly
+    //XOR the generator_poly (now with integer notation) with the message polynomial. XOR by 0 with those "outside" the range of the generator_poly
     for (let j = 0; j < generator_poly_copy.length; j++) {
       let generator_term = generator_poly_copy[j].split("x")[0];
       let message_term = message_poly[j] ? message_poly[j].split("x") : [0, 0];
-      message_poly[j] = `${message_term[0] ^ Number(generator_term)}x${
-        message_term[1]
-      }`;
+      message_poly[j] = `${Number(message_term[0]) ^ Number(generator_term)}x${message_term[1]}`;
     }
+
+    console.log(message_poly);
 
     //discard ALL 0 terms which are at the beginning
     while (Number(message_poly[0].split("x")[0]) === 0) {
       message_poly.shift();
-    }
+      i++;
+    } // this counts as extra step if there are more than one 0s in the beginning.
+    i--;
   }
 
   //console.log(message_poly); //Final 18 EC-codewords
   return message_poly.map(item => item.split("x")[0]);
-
-  //LOOP
-
-  //console.log(message_poly); // lead_term should be 0, it is not. What's wrong. INvestigate tomorrow
 }
+
+const finder_pattern = [
+  [0, 0, 0, 0, 0, 0, 0, 0, 0],
+  [0, 1, 1, 1, 1, 1, 1, 1, 0],
+  [0, 1, 0, 0, 0, 0, 0, 1, 0],
+  [0, 1, 0, 1, 1, 1, 0, 1, 0],
+  [0, 1, 0, 1, 1, 1, 0, 1, 0],
+  [0, 1, 0, 1, 1, 1, 0, 1, 0],
+  [0, 1, 0, 0, 0, 0, 0, 1, 0],
+  [0, 1, 1, 1, 1, 1, 1, 1, 0],
+  [0, 0, 0, 0, 0, 0, 0, 0, 0]
+];
+
+const alignment_pattern = [[1, 1, 1, 1, 1], [1, 0, 0, 0, 1], [1, 0, 1, 0, 1], [1, 0, 0, 0, 1], [1, 1, 1, 1, 1]];
+
+//It's here and not as a state because a state would trigger new updates constantly, we don't want that. We just want a temp storage for the module placement!
+/**
+ * Finds an overlapping pixel by looking if
+ * the ith module exists in the blacklist.
+ * @param {integer} x
+ * @param {integer} y
+ */
+var blacklist = [];
+
+const is_not_overlapping = (x, y) => {
+  //if (y < 0 || y > 20) return false;
+  return blacklist.indexOf(x + y * 57) === -1;
+};
+
+const binary_poly_division = (input, divide) => {
+  var byte = Array(input.length).join("0");
+  byte = byte.slice(0, input.length - divide.length);
+  divide += byte;
+  //assert the same size
+  console.assert(input.length === divide.length, [input.length, divide.length]);
+  var XOR = parseInt(binary_to_number(input) ^ binary_to_number(divide), 10).toString(2);
+
+  return XOR;
+};
+
+const sleep = milliseconds => {
+  const date = Date.now();
+  let currentDate = null;
+  do {
+    currentDate = Date.now();
+  } while (currentDate - date < milliseconds);
+};
+
 function App() {
   const history = useHistory();
   const dispatch = useDispatch();
@@ -152,33 +203,175 @@ function App() {
   const [roomcode, setRoomcode] = useState("");
   const [encodedBinary, setEncodedBinary] = useState("");
   const [state, setState] = useState(null);
+  const canvasRef = React.useRef(null);
+  const [dataBits, setDataBits] = useState("");
+
+  const draw_modules_at = (x, y, SIZE, context, modules) => {
+    modules.forEach((subarray, i) => {
+      subarray.forEach((module, j) => {
+        if (module === 1) context.fillRect(j * SIZE + x * SIZE, i * SIZE + y * SIZE, SIZE, SIZE);
+        // need special case for -1,
+        if ((x === -1 && j === 0) || (y === -1 && i === 0)) return; //skip
+        blacklist.push(j + x + (y + i) * 57);
+      });
+    });
+  };
+
+  useEffect(() => {
+    const SIZE = 4;
+    const context = canvasRef.current.getContext("2d");
+    //reset canvas and blacklist
+    //context.fillRect = "rgba(0,0,0,0)";
+    //context.fillRect(canvasRef.left, canvasRef.top, canvasRef.width, canvasRef.height)
+    context.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    context.beginPath();
+    blacklist = [];
+
+    // Add the three initial finder patterns
+    draw_modules_at(-1, -1, SIZE, context, finder_pattern);
+
+    draw_modules_at((10 - 1) * 4 + 21 - 7 - 1, -1, SIZE, context, finder_pattern);
+    draw_modules_at(-1, (10 - 1) * 4 + 21 - 7 - 1, SIZE, context, finder_pattern);
+
+    // draw alignment_patterns, they need to be placed correctly, (from the middle point, do this tomorrow) (i.e minus 2 on both X and Y axis)
+    draw_modules_at(6 - 2, 28 - 2, SIZE, context, alignment_pattern); //(VERSION 10 alignment patterns)
+    draw_modules_at(28 - 2, 28 - 2, SIZE, context, alignment_pattern);
+    draw_modules_at(28 - 2, 6 - 2, SIZE, context, alignment_pattern);
+    draw_modules_at(28 - 2, 50 - 2, SIZE, context, alignment_pattern);
+    draw_modules_at(50 - 2, 50 - 2, SIZE, context, alignment_pattern);
+    draw_modules_at(50 - 2, 28 - 2, SIZE, context, alignment_pattern);
+
+    //add the timing patterns
+    var i;
+    for (i = 0; i < 50; i++) {
+      blacklist.push(6 + i + 6 * 57);
+      blacklist.push(6 + (6 + i) * 57);
+      if (i % 2 === 0) {
+        context.fillRect((6 + i) * SIZE, 6 * SIZE, SIZE, SIZE);
+        context.fillRect(6 * SIZE, (6 + i) * SIZE, SIZE, SIZE);
+      }
+    }
+    // add dark module
+    draw_modules_at(8, 4 * 10 + 9, SIZE, context, [[1]]);
+
+    //reserve format info areas (I could draw these first)
+    let upper_left = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+    draw_modules_at(0, 8, SIZE, context, [upper_left]);
+    let upper_left_transpose = upper_left.map(col => [col]);
+    draw_modules_at(8, 0, SIZE, context, upper_left_transpose);
+    let upper_right = [0, 0, 0, 0, 0, 0, 0, 0];
+    draw_modules_at((10 - 1) * 4 + 21 - 7 - 1, 8, SIZE, context, [upper_right]);
+    let lower_left = upper_right.map(col => [col]);
+    draw_modules_at(8, (10 - 1) * 4 + 21 - 7 - 1, SIZE, context, lower_left);
+
+    //reserve version area
+    let version_area = [[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]];
+    draw_modules_at(0, (10 - 1) * 4 + 21 - 7 - 1 - 3, SIZE, context, version_area);
+
+    let version_area_transpose = version_area[0].map((_, index) => version_area.map(row => row[index]));
+    draw_modules_at((10 - 1) * 4 + 21 - 7 - 1 - 3, 0, SIZE, context, version_area_transpose);
+
+    //add the databits (REFACTOR CODE LATER)
+    if (dataBits) {
+      // start drawing position is at 20,20, (probably do this as a class instead idk)
+
+      //console.log(dataBits);
+      var i = 0; //bit index
+      var size = 10 * 4 + 17; //v = 1,
+
+      for (var right = size - 1; right >= 1; right -= 2) {
+        if (right === 6) right = 5;
+        for (var vert = 0; vert < size; vert++) {
+          //vertical counter
+          for (var j = 0; j < 2; j++) {
+            var x = right - j; // actual X coordinate
+            var upward = ((right + 1) & 2) === 0; //bitwise AND
+            var y = upward ? size - 1 - vert : vert; // actual y coordinate
+            if (is_not_overlapping(x, y)) {
+              var bit = dataBits[i];
+              if ((x + y) % 2 === 0) bit = bit == 1 ? 0 : 1; //invert bit, mask pattern 0
+              draw_modules_at(x, y, SIZE, context, [[Number(bit)]]);
+              //sleep(5000);
+              //The bits are not 100% correct. So, must be wrong with the solomon reed algorithm? EC codewords must be wrong somewhere.
+              //We can investigate this. Because the wrong bits come towards the end (CONFIRM THIS) and that's where the Ec codewords go.
+              i++;
+            }
+          }
+        }
+      }
+    }
+
+    //Format string, we are using mask apttern 0
+    var five_bit_format = "01000";
+    var format_string = "10000000000000"; // L-level and mask pattern 0
+
+    while (format_string.length > 10) {
+      var gen_poly = "10100110111";
+      var format_string = binary_poly_division(format_string, gen_poly);
+    }
+    var combined_format = `${five_bit_format}${format_string}`;
+    var final_format_string = parseInt(
+      binary_to_number(combined_format) ^ binary_to_number("101010000010010"),
+      10
+    ).toString(2);
+
+    // 	111011111000100
+    final_format_string = [..."111011111000100"].map(item => Number(item));
+    //Possible to draw over reversed bits
+    var upper_left_format = [
+      [...final_format_string.slice(0, 6)],
+      [...final_format_string.slice(6, 8)],
+      [...final_format_string.slice(9, 15)].reverse().map(col => [col]),
+      [...final_format_string.slice(8, 9)].reverse().map(col => [col])
+    ];
+    var bottom_left_format = [...final_format_string.slice(0, 7)].reverse().map(col => [col]);
+    var upper_right_format = [...final_format_string.slice(7, 15)];
+
+    // "don't forget to JUMP over the 6th bit for the upper left
+    draw_modules_at(0, 8, SIZE, context, [upper_left_format[0]]);
+    draw_modules_at(7, 8, SIZE, context, [upper_left_format[1]]);
+    draw_modules_at(8, 0, SIZE, context, upper_left_format[2]);
+    draw_modules_at(8, 7, SIZE, context, upper_left_format[3]);
+    draw_modules_at((10 - 1) * 4 + 21 - 7 - 1, 8, SIZE, context, [upper_right_format]);
+    draw_modules_at(8, (10 - 1) * 4 + 21 - 7, SIZE, context, bottom_left_format);
+
+    // Fill in the 6 x 3 version information (from QR-code specification)
+    var version_information = [..."001010010011010011"].map(bit => Number(bit)).reverse();
+    var version_information_array = [
+      version_information.filter((_, index) => index % 3 === 0),
+      version_information.filter((_, index) => index % 3 === 1),
+      version_information.filter((_, index) => index % 3 === 2)
+    ];
+    draw_modules_at(0, (10 - 1) * 4 + 21 - 7 - 1 - 3, SIZE, context, version_information_array);
+    var t_version_information_array = version_information_array[0].map((_, index) =>
+      version_information_array.map(row => row[index])
+    );
+    //could do a "draw queue" instead of doing this everytime
+    draw_modules_at((10 - 1) * 4 + 21 - 7 - 1 - 3, 0, SIZE, context, t_version_information_array);
+  }, [canvasRef, dataBits]);
 
   var Spotify = window.cordova.plugins.SpotifyPlugin;
-  if (encodedBinary) {
-    let qr_chunks = comeplete_qr_code(encodedBinary);
+
+  if (encodedBinary && !dataBits) {
+    //This is done twice, which we don't want.
+    let qr_chunks = comeplete_qr_code(encodedBinary); // length is correct
     //converts the byte chunks into integer, necessary for EC calculations (QR-related), these are the coefficients
     let integer_chunks = qr_chunks.map(chunk => parseInt(chunk, 2));
     let message_polynomial = integer_chunks.map(
-      (integer, index) =>
-        `${integer}x${integer_chunks.length - (1 + index) + 18}`
+      (integer, index) => `${integer}x${integer_chunks.length - (1 + index) + 18}`
     );
-    generator_poly = generator_poly.replace(/\s/g, "");
-    generator_poly = generator_poly.split("+");
+    var generator_poly_new = generator_poly.replace(/\s/g, "");
+    var generator_poly_new = generator_poly.split("+");
     //Bytes divided into bytes and groups as per the QR specification for 10-L
-    var group_one = [
-      integer_chunks.splice(0, 68),
-      integer_chunks.splice(68, 136)
-    ];
-    var group_two = [
-      integer.chunks.splice(136, 205),
-      integer_chunks.splice(205, 274)
-    ];
+    var group_one = [integer_chunks.splice(0, 68), integer_chunks.splice(0, 68)];
+    var group_two = [integer_chunks.splice(0, 69), integer_chunks.splice(0, 69)];
     // the error correction codewords for each block (4 blocks, in order)
+
     var EC_codewords = [
-      longDivision(message_polynomial.splice(0, 68), generator_poly),
-      longDivision(message_polynomial.splice(68, 136), generator_poly),
-      longDivision(message_polynomial.splice(136, 205), generator_poly),
-      longDivision(message_polynomial.splice(205, 274), generator_poly)
+      longDivision(message_polynomial.splice(0, 68), generator_poly_new),
+      longDivision(message_polynomial.splice(0, 68), generator_poly_new),
+      longDivision(message_polynomial.splice(0, 69), generator_poly_new),
+      longDivision(message_polynomial.splice(0, 69), generator_poly_new)
     ];
 
     //Interleave the message blocks,
@@ -199,10 +392,14 @@ function App() {
         interleaved_ec.push(EC_codewords[3].shift());
       }
     }
-    var combined_interleaved = [...interleaved, ...interleaved_ec].map(item =>
-      number_to_binary(item)
-    );
+
+    var combined_interleaved = [...interleaved, ...interleaved_ec].map(item => number_to_binary(item));
     var complete_message = combined_interleaved.join("");
+
+    console.log(complete_message.length);
+
+    //it is larger than 274 sinc we're adding the EC correction.
+    setDataBits(complete_message);
   }
   //console.log(comeplete_qr_code(encodedBinary));
   var access_token = "";
@@ -217,6 +414,8 @@ function App() {
         onClick={() => {
           // below is for logging in
           Spotify.login(client_id, redirect_uri, "", function(res) {
+            console.log(res);
+            setDataBits("");
             setEncodedBinary(
               res
                 .split("")
@@ -225,7 +424,21 @@ function App() {
                 })
                 .join(" ")
             );
-            console.log("Now printing...");
+            // convert back from binary and compare it against res
+            var binary_string = res
+              .split("")
+              .map(char => {
+                return [hex_to_binary(characters_to_hex(char))];
+              })
+              .join(" ");
+
+            var converted_string = binary_string
+              .split(" ")
+              .map(byte => hex_to_character(binary_to_hex(byte)))
+              .join("");
+            //console.log(converted_string);
+            //console.log(res);
+            console.assert(res === converted_string, ["FAILED STRING COMPARISON"]);
           });
         }}
       >
@@ -235,32 +448,37 @@ function App() {
         variant="contained"
         color="blue"
         onClick={() => {
-          // This is when we want to retrieve token manually
-          Spotify.getToken(
-            function(res) {
-              // This tests that the decoded binary value is correct debugging purposes
-              let temp = encodedBinary
-                .split(" ")
-                .map(binary => {
-                  return hex_to_character(binary_to_hex(binary));
-                })
-                .join("");
-              console.log(res === temp);
-            },
-            function(error) {
-              alert(error);
+          window.QRScanner.show();
+          window.QRScanner.scan(displayContents);
+          function displayContents(err, text) {
+            if (err) {
+              console.log(err);
+            } else {
+              alert(text);
             }
-          );
+          }
+          // This is when we want to retrieve token manually
+          //Spotify.getToken(
+          //  function(res) {
+          //    // This tests that the decoded binary value is correct debugging purposes
+          //    let temp = encodedBinary
+          //      .split(" ")
+          //      .map(binary => {
+          //        return hex_to_character(binary_to_hex(binary));
+          //      })
+          //      .join("");
+          //    console.log(res === temp);
+          //  },
+          //  function(error) {
+          //    alert(error);
+          //  }
+          //);
         }}
       >
-        Log in
+        Scan QR
       </Button>
       {access_token && (
-        <Button
-          variant="contained"
-          color="blue"
-          onClick={() => handleAddQueue()}
-        >
+        <Button variant="contained" color="blue" onClick={() => handleAddQueue()}>
           Add song
         </Button>
       )}
@@ -320,6 +538,21 @@ function App() {
           Join Room
         </Button>
       )}
+      <h1>{"Hello"}</h1>
+      <div style={{ display: "block", marginLeft: "auto", marginRight: "auto" }}>
+        <canvas
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            marginLeft: "-150px",
+            marginTop: "-100px"
+          }}
+          ref={canvasRef}
+          width={400}
+          height={400}
+        />
+      </div>
     </div>
   );
 }
