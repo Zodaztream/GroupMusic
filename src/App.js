@@ -31,6 +31,8 @@ const sleep = milliseconds => {
   } while (currentDate - date < milliseconds);
 };
 
+//redux might not work with cordova
+
 function App() {
   const history = useHistory();
   const dispatch = useDispatch();
@@ -38,63 +40,84 @@ function App() {
   const [searchValue, setSearch] = useState("");
   const [roomcode, setRoomcode] = useState("");
   const [res, setRes] = useState("");
+  const [qe, setQe] = useState(false);
+  const [token, setToken] = useState("");
 
   var Spotify = window.cordova.plugins.SpotifyPlugin;
 
+  useEffect(() => {
+    localStorage.setItem("access_token", token); //update the localStorage entry for the access_token
+  }, [token]);
+
   //console.log(comeplete_qr_code(encodedBinary));
-  var access_token = "";
   // add token to local storage (might still use this)
-  localStorage.setItem("access_token", access_token);
+
+  const hideQRCamera = () => {
+    setQe(false);
+    window.QRScanner.destroy(); // for some reason sets it black
+  };
 
   return (
     <div>
-      <Button
-        variant="contained"
-        color="blue"
-        onClick={() => {
-          // below is for logging in
-          Spotify.login(client_id, redirect_uri, "", function(res) {
-            setRes(res);
-          });
-        }}
-      >
-        Log in
-      </Button>
-      <Button
-        variant="contained"
-        color="blue"
-        onClick={() => {
-          window.QRScanner.show();
-          window.QRScanner.scan(displayContents);
-          function displayContents(err, text) {
-            if (err) {
-              console.log(err);
-            } else {
-              alert(text);
+      {!qe && !token && (
+        <Button
+          variant="contained"
+          color="blue"
+          onClick={() => {
+            // below is for logging in
+            Spotify.login(client_id, redirect_uri, "", function(res) {
+              setToken(res);
+              setRes(res);
+            });
+          }}
+        >
+          Log in
+        </Button>
+      )}
+      {!qe && (
+        <Button
+          variant="contained"
+          color="blue"
+          onClick={() => {
+            setQe(true);
+            window.QRScanner.show();
+            window.QRScanner.scan(displayContents);
+            function displayContents(err, text) {
+              if (err) {
+                console.log(err);
+              } else {
+                setToken(text);
+              }
+              hideQRCamera();
             }
-            window.QRScanner.hide();
-          }
-        }}
-      >
-        Scan QR
-      </Button>
-      {access_token && (
+          }}
+        >
+          Scan QR
+        </Button>
+      )}
+      {qe && (
+        <Button variant="contained" color="blue" onClick={() => hideQRCamera}>
+          Hide
+        </Button>
+      )}
+      {!qe && token && (
         <Button variant="contained" color="blue" onClick={() => handleAddQueue()}>
           Add song
         </Button>
       )}
-      {access_token && (
+      {!qe && token && (
         <TextField
           id="standard-basic"
           label="Search track..."
           onChange={event => setSearch(event.currentTarget.value)}
         />
       )}
-      {access_token && (
+      {!qe && token && (
         <Button
           variant="contained"
           color="blue"
           onClick={() =>
+            //maybe need to use the spotify plugin, because that's the one that is recognized.
             handleSearch(searchValue).then(result => {
               const { tracks } = JSON.parse(result);
               tracks["items"].map(item => {
@@ -112,33 +135,7 @@ function App() {
           Search
         </Button>
       )}
-      {access_token && <Tracklist />}
-      {!access_token && (
-        <TextField
-          id="standard-basic"
-          label="Enter room code..."
-          onChange={event => setRoomcode(event.currentTarget.value)}
-        />
-      )}
-      {!access_token && (
-        <Button
-          variant="contained"
-          color="blue"
-          onClick={() => {
-            console.log(window.location.hostname);
-            window.location.assign(
-              "http://" +
-                window.location.hostname +
-                ":8888/join?" +
-                querystring.stringify({
-                  code: roomcode
-                })
-            );
-          }}
-        >
-          Join Room
-        </Button>
-      )}
+      {!qe && token && <Tracklist />}
 
       {res && <QrComponent res={res} />}
     </div>
